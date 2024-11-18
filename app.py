@@ -2,7 +2,10 @@ import hashlib
 import sqlite3
 import streamlit as st
 import re
+import os
 from enkripsidekripsitext import super_encrypt, super_decrypt
+from file_encryption import encrypt_file, decrypt_file, generate_key, save_key, load_key, create_zip
+from steganografigambar import encrypt_message_with_key, decrypt_message_with_key, generate_key_file, create_zip
 
 # Fungsi untuk meng-hash password
 def hash_password(password):
@@ -29,6 +32,24 @@ def create_tables():
                         ciphertext TEXT,
                         scytale_key INTEGER,
                         aes_key TEXT,
+                        FOREIGN KEY (user_id) REFERENCES users(id))''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS file_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        action TEXT,
+                        file_name TEXT,
+                        encrypted_file TEXT,
+                        decrypted_file TEXT,
+                        key_file TEXT,
+                        FOREIGN KEY (user_id) REFERENCES users(id))''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS gambar_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        action TEXT,
+                        image_name TEXT,
+                        encrypted_image TEXT,
+                        decrypted_message TEXT,
+                        key_file TEXT,
                         FOREIGN KEY (user_id) REFERENCES users(id))''')
     conn.commit()
     conn.close()
@@ -59,6 +80,27 @@ def save_encryption_log(user_id, action, plaintext, ciphertext, scytale_key, aes
     conn.commit()
     conn.close()
 
+# Fungsi untuk menyimpan log enkripsi/dekripsi file
+def save_file_log(user_id, action, file_name, encrypted_file, decrypted_file, key_file):
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('''INSERT INTO file_logs (user_id, action, file_name, encrypted_file, decrypted_file, key_file)
+                      VALUES (?, ?, ?, ?, ?, ?)''', (user_id, action, file_name, encrypted_file, decrypted_file, key_file))
+    conn.commit()
+    conn.close()
+
+# Fungsi untuk menyimpan log enkripsi/dekripsi gambar
+def save_image_log(user_id, action, image_name, encrypted_image, decrypted_message, key_file):
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('''INSERT INTO gambar_logs (user_id, action, image_name, encrypted_image, decrypted_message, key_file)
+                      VALUES (?, ?, ?, ?, ?, ?)''', (user_id, action, image_name, encrypted_image, decrypted_message, key_file))
+    conn.commit()
+    conn.close()
+
+
+
+
 # Fungsi untuk memvalidasi password
 def validate_password(password):
     errors = []
@@ -88,7 +130,7 @@ def validate_no_empty_lines(plaintext):
 create_tables()
 
 # Streamlit UI
-st.title("Aplikasi Login")
+st.title("Aplikasi Kriptografi")
 
 # Menggunakan session_state untuk menyimpan halaman dan user_id aktif
 if 'page' not in st.session_state:
@@ -177,10 +219,63 @@ elif st.session_state.page == "Menu":
                         # Simpan log enkripsi
                         save_encryption_log(st.session_state.user_id, "enkripsi", text_to_encrypt, encrypted_text, scytale_key, aes_key)
             elif data_type == "File":
-                st.error("Enkripsi file belum tersedia.")
-            elif data_type == "Gambar":
-                st.error("Enkripsi gambar belum tersedia.")
+                uploaded_file = st.file_uploader("Pilih file untuk dienkripsi", type=["txt", "pdf", "jpg", "png", "gif", "mp3", "mp4", "zip", "rar", "*"])
+                if st.button("Enkripsi File"):
+                    if uploaded_file is not None:
+                        # Simpan file sementara
+                        with open(uploaded_file.name, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        # Menghasilkan dan menyimpan kunci
+                        key = generate_key()
+                        # Enkripsi file
+                        encrypted_file_path = encrypt_file(uploaded_file.name, key)
+                        # Buat file ZIP yang berisi file terenkripsi dan kunci
+                        zip_file_path = create_zip(encrypted_file_path, key)
+                        st.success("File berhasil dienkripsi dan disimpan dalam ZIP!")
 
+                        # Menyediakan tombol unduh untuk file ZIP
+                        with open(zip_file_path, "rb") as f:
+                            st.download_button(
+                                label="Download File ZIP",
+                                data=f,
+                                file_name=zip_file_path.split("/")[-1],
+                                mime="application/zip"
+                            )
+                    else:
+                        st.error("Silakan pilih file.")
+            elif data_type == "Gambar":
+                
+                uploaded_image = st.file_uploader("Pilih gambar", type=["png", "jpg", "jpeg"])
+                message = st.text_input("Masukkan pesan yang ingin disembunyikan")
+
+                if uploaded_image:
+                    # Menyimpan gambar yang diunggah di session state
+                    st.session_state["uploaded_image"] = uploaded_image
+
+                if st.button("Enkripsi Gambar"):
+                    if st.session_state["uploaded_image"] and message:
+                        image_path = f"temp_input.{uploaded_image.type.split('/')[-1]}"
+                        with open(image_path, "wb") as f:
+                            f.write(st.session_state["uploaded_image"].getbuffer())
+
+                        key_file_path, key = generate_key_file()
+                        st.session_state["key_file_path"] = key_file_path
+
+                        output_path = f"encrypted_image.{uploaded_image.type.split('/')[-1]}"
+                        encrypted_image_path = encrypt_message_with_key(image_path, message, output_path, key)
+                        st.session_state["encrypted_image_path"] = encrypted_image_path
+
+                        st.success("Gambar berhasil dienkripsi!")
+
+                        # Save the log into the database
+                        save_image_log(st.session_state.user_id, "enkripsi", uploaded_image.name, encrypted_image_path, None, key_file_path)
+
+                        # Buat file ZIP yang berisi gambar terenkripsi dan kunci
+                        zip_file_path = create_zip(encrypted_image_path, key_file_path)
+
+                        # Menyediakan tombol unduh untuk file ZIP
+                        with open(zip_file_path, "rb") as zip_file:
+                            st.download_button("Download Gambar dan Kunci dalam ZIP", data=zip_file, file_name=zip_file_path.split('/')[-1])
         elif option == "Dekripsi":
             st.write("Pilih jenis data yang ingin didekripsi:")
             data_type = st.selectbox("Pilih:", ["Teks", "File", "Gambar"])
@@ -201,6 +296,42 @@ elif st.session_state.page == "Menu":
                         # Simpan log dekripsi
                         save_encryption_log(st.session_state.user_id, "dekripsi", decrypted_text, text_to_decrypt, scytale_key, aes_key)
             elif data_type == "File":
-                st.error("Dekripsi file belum tersedia.")
+                encrypted_file = st.file_uploader("Pilih file terenkripsi", type=["txt", "pdf", "jpg", "png", "gif", "mp3", "mp4", "zip", "rar", "*"])
+                key_file = st.file_uploader("Pilih file kunci", type=["key"])
+
+                if st.button("Dekripsi File"):
+                    # After decrypting the file, save the log
+                    if encrypted_file is not None and key_file is not None:
+                        encrypted_file_path = encrypted_file.name
+                        with open(encrypted_file_path, "wb") as f:
+                            f.write(encrypted_file.getbuffer())
+                        key = key_file.read()
+
+                        decrypted_file_path = decrypt_file(encrypted_file_path, key)
+                        st.success("File berhasil didekripsi!")
+
+                        # Save the log into the database
+                        save_file_log(st.session_state.user_id, "dekripsi", encrypted_file.name, None, decrypted_file_path, "secret.key")
+
+                        with open(decrypted_file_path, "rb") as f:
+                            st.download_button("Download File Terdekripsi", f, file_name=decrypted_file_path)
+
+                    else:
+                        st.error("Silakan pilih file.")
             elif data_type == "Gambar":
-                st.error("Dekripsi gambar belum tersedia.")
+                encrypted_image = st.file_uploader("Unggah gambar terenkripsi", type=["png", "jpg", "jpeg", "img"])
+                uploaded_key = st.file_uploader("Unggah file kunci", type=["txt"])
+                if st.button("Dekripsi Gambar"):
+                    # After decrypting the image, save the log
+                    if encrypted_image and uploaded_key:
+                        encrypted_image_path = f"temp_encrypted.{encrypted_image.type.split('/')[-1]}"
+                        with open(encrypted_image_path, "wb") as f:
+                            f.write(encrypted_image.getbuffer())
+
+                        key = uploaded_key.getvalue().decode("utf-8").strip()
+
+                        decrypted_message = decrypt_message_with_key(encrypted_image_path, key)
+                        st.write("Pesan Terdekripsi:", decrypted_message)
+
+                        # Save the log into the database
+                        save_image_log(st.session_state.user_id, "dekripsi", encrypted_image.name, None, decrypted_message, uploaded_key.name)
