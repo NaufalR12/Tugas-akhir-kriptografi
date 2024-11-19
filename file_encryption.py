@@ -58,26 +58,3 @@ def decrypt_file(encrypted_file_path, key):
     
     return encrypted_file_path  # Mengembalikan nama file yang sama
 
-# Contoh penggunaan
-if __name__ == "__main__":
-    # Menghasilkan kunci dan menyimpannya
-    key = generate_key()
-    save_key(key, "secret.key")
-    print("Kunci disimpan di 'secret.key'.")
-
-    # Uji enkripsi dan dekripsi file
-    file_to_encrypt = "example.txt"  # Ganti dengan nama file yang ingin dienkripsi
-    # Load key dari file
-    key = load_key("secret.key")
-
-    # Enkripsi file
-    encrypted_file = encrypt_file(file_to_encrypt, key)
-    print(f"File terenkripsi disimpan di: {encrypted_file}")
-
-    # Buat file ZIP yang berisi file terenkripsi dan kunci
-    zip_file = create_zip(encrypted_file, key)
-    print(f"File ZIP disimpan di: {zip_file}")
-
-    # Dekripsi file
-    decrypted_file = decrypt_file(encrypted_file, key)
-    print(f"File didekripsi disimpan di: {decrypted_file}")

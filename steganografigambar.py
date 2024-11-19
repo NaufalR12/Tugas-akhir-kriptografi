@@ -26,7 +26,7 @@ def decrypt_message_with_key(encrypted_image_path, key):
         return "Kunci tidak valid atau gambar rusak."
 
 # Fungsi untuk membuat file ZIP yang berisi gambar terenkripsi dan kunci
-def create_zip(image_path, key_file_path):
+def create_zip_stegano(image_path, key_file_path):
     zip_file_path = f"{image_path}.zip"
     with zipfile.ZipFile(zip_file_path, 'w') as zip_file:
         zip_file.write(image_path, image_path.split('/')[-1])  # Menggunakan nama file dari path
