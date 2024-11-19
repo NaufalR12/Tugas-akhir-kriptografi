@@ -1,2 +1,4 @@
 # Tugas-akhir-kriptografi
-belum selesai, otw nih
+Nama : Naufal Rafid Muhammad Faddila
+NIM : 123220052
+Kelas : IF-E
