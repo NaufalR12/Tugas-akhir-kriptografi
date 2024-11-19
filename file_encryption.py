@@ -34,7 +34,7 @@ def encrypt_file(file_path, key):
 
 # Fungsi untuk membuat file ZIP yang berisi file terenkripsi dan kunci
 def create_zip(encrypted_file_path, key):
-    zip_file_path = f"{encrypted_file_path}.zip"
+    zip_file_path = f"{encrypted_file_path}_output.zip"
     with zipfile.ZipFile(zip_file_path, 'w') as zip_file:
         zip_file.write(encrypted_file_path, os.path.basename(encrypted_file_path))
         key_file_path = "secret.key"
