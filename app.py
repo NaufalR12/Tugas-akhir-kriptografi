@@ -19,92 +19,63 @@ def hash_scytale_key(scytale_key: int) -> str:
     return hashed_key
 
 
+# ... existing code ...
+import supabase
+
 def create_connection():
-    conn = sqlite3.connect('users.db')
-    return conn
-
-
-def create_tables():
-    conn = create_connection()
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        username TEXT NOT NULL UNIQUE,
-                        password TEXT NOT NULL)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS encryption_logs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        action TEXT,
-                        ciphertext TEXT,
-                        scytale_key INTEGER,
-                        aes_key TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id))''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS file_logs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        action TEXT,
-                        file_name TEXT,
-                        encrypted_file TEXT,
-                        decrypted_file TEXT,
-                        key_file TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id))''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS gambar_logs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        action TEXT,
-                        image_name TEXT,
-                        encrypted_image TEXT,
-                        key_file TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id))''')
-    conn.commit()
-    conn.close()
-
+    url = "https://qxvuktkvfrzzuduinfla.supabase.co"
+    key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4dnVrdGt2ZnJ6enVkdWluZmxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI0OTgyMTQsImV4cCI6MjA0ODA3NDIxNH0.oilmkT4S49LVX0fxDMkY9pNajzNIGBRFAPXzqmV4n_E"
+    supabase_client = supabase.create_client(url, key)
+    return supabase_client
 
 def add_user(username, password):
     conn = create_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
-    if cursor.fetchone():
-        raise sqlite3.IntegrityError("Username sudah ada")
-    cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hash_password(password)))
-    conn.commit()
-    conn.close()
-
+    # ... existing code ...
+    if conn.table('users').select('username').eq('username', username).execute().data:
+        raise Exception("Username sudah ada")  # Ganti dengan exception yang sesuai
+    conn.table('users').insert({'username': username, 'password': hash_password(password)}).execute()
+    # ... existing code ...
 
 def check_user(username, password):
     conn = create_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, hash_password(password)))
-    user = cursor.fetchone()
-    conn.close()
+    user = conn.table('users').select('*').eq('username', username).eq('password', hash_password(password)).execute().data
+    #conn.close()
     return user
-
 
 def save_encryption_log(user_id, action, ciphertext, scytale_key, aes_key):
     conn = create_connection()
-    cursor = conn.cursor()
-    cursor.execute('''INSERT INTO encryption_logs (user_id, action, ciphertext, scytale_key, aes_key)
-                      VALUES (?, ?, ?, ?, ?)''', (user_id, action, ciphertext, scytale_key, aes_key))
-    conn.commit()
-    conn.close()
-
+    conn.table('encryption_logs').insert({
+        'user_id': user_id,
+        'action': action,
+        'ciphertext': ciphertext,
+        'scytale_key': scytale_key,
+        'aes_key': aes_key
+    }).execute()
+    #conn.close()
 
 def save_file_log(user_id, action, file_name, encrypted_file, decrypted_file, key_file):
     conn = create_connection()
-    cursor = conn.cursor()
-    cursor.execute('''INSERT INTO file_logs (user_id, action, file_name, encrypted_file, decrypted_file, key_file)
-                      VALUES (?, ?, ?, ?, ?, ?)''', (user_id, action, file_name, encrypted_file, decrypted_file, key_file))
-    conn.commit()
-    conn.close()
-
+    conn.table('file_logs').insert({
+        'user_id': user_id,
+        'action': action,
+        'file_name': file_name,
+        'encrypted_file': encrypted_file,
+        'decrypted_file': decrypted_file,
+        'key_file': key_file
+    }).execute()
+    #conn.close()
 
 def save_image_log(user_id, action, image_name, encrypted_image, decrypted_message, key_file):
     conn = create_connection()
-    cursor = conn.cursor()
-    cursor.execute('''INSERT INTO gambar_logs (user_id, action, image_name, encrypted_image, key_file)
-                      VALUES (?, ?, ?, ?, ?)''', (user_id, action, image_name, encrypted_image, key_file))
-    conn.commit()
-    conn.close()
+    conn.table('gambar_logs').insert({
+        'user_id': user_id,
+        'action': action,
+        'image_name': image_name,
+        'encrypted_image': encrypted_image,
+        'key_file': key_file
+    }).execute()
+    #conn.close()
+# ... existing code ...
 
 
 
@@ -131,7 +102,7 @@ def validate_no_empty_lines(plaintext):
 
 
 #buat tabel jika belum ada
-create_tables()
+#create_tables()
 
 #Sidebar
 def create_sidebar():
@@ -208,7 +179,7 @@ if st.session_state.page == "Login":
             else:
                 user = check_user(username, password)
                 if user:
-                    st.session_state.user_id = user[0]  
+                    st.session_state.user_id = user[0]['id']  
                     st.session_state.user_name = username
                     st.session_state.page = "Menu"  
                     st.rerun()  
@@ -277,6 +248,7 @@ elif st.session_state.page == "Menu":
                             hashed_aes_key = hash_aes_key(aes_key)
                         
                             save_encryption_log(st.session_state.user_id, "enkripsi", encrypted_text, hashed_scytale_key, hashed_aes_key)
+                            print(f"Inserting log: user_id={st.session_state.user_id}, action='enkripsi', ciphertext={encrypted_text}, scytale_key={scytale_key}, aes_key={aes_key}")
                         except Exception as e:
                             st.error(f"Terjadi kesalahan saat proses enkripsi: {str(e)}")
             elif data_type == "📁File":
@@ -294,7 +266,7 @@ elif st.session_state.page == "Menu":
                             # Buat file ZIP yang berisi file terenkripsi dan kunci
                             zip_file_path = create_zip(encrypted_file_path, key)
                             st.success("File berhasil dienkripsi dan disimpan dalam ZIP!")
-
+                            save_file_log(st.session_state.user_id, "enkripsi", uploaded_file.name, encrypted_file_path, None, "secret.key")
                             # Menyediakan tombol unduh untuk file ZIP
                             with open(zip_file_path, "rb") as f:
                                 st.download_button(
