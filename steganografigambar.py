@@ -3,7 +3,7 @@ from PIL import Image
 from stegano import lsb
 import zipfile
 import os
-
+import cv2
 # Fungsi untuk membuat file kunci enkripsi
 def generate_key_file(file_path="encryption_key.txt"):
     key = os.urandom(16).hex()  # Membuat kunci acak 16 byte dalam format heksadesimal
