@@ -9,12 +9,12 @@ attrs==24.2.0
 blinker==1.8.2
 cachetools==5.5.0
 certifi==2024.8.30
-cffi @ file:///C:/b/abs_90yq4lmu83/croot/cffi_1726856448345/work
+cffi==1.17.1
 charset-normalizer==3.4.0
 click==8.1.7
 colorama==0.4.6
 crayons==0.4.0
-cryptography @ file:///C:/b/abs_cf3txdxqp6/croot/cryptography_1731671839532/work
+cryptography==43.0.3
 deprecation==2.1.0
 exceptiongroup==1.2.2
 frozenlist==1.5.0
@@ -47,7 +47,7 @@ postgrest==0.19.0
 propcache==0.2.0
 protobuf==5.28.3
 pyarrow==18.0.0
-pycparser @ file:///tmp/build/80754af9/pycparser_1636541352034/work
+pycparser==2.21
 pycryptodome==3.21.0
 pydantic==2.10.1
 pydantic_core==2.27.1
