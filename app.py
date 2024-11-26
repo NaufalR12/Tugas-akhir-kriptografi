@@ -90,7 +90,7 @@ def validate_password(password):
     if not re.search(r"[A-Z]", password):
         errors.append("Password harus mengandung huruf besar.")
     if not re.search(r"[^a-zA-Z]", password):
-        errors.append("Password harus mengandung karakter non-alfabet.")
+        errors.append("Password harus mengandung angka atau simbol.")
     return errors
 
 
@@ -289,55 +289,70 @@ elif st.session_state.page == "Menu":
                     else:
                         st.error("Silakan pilih file.")
             elif data_type == "📷Gambar":
-                uploaded_image = st.file_uploader("Pilih gambar", type=["png", "jpg", "jpeg"])
+                upload_method = st.radio("Pilih metode input gambar:", ("Unggah file", "Gunakan kamera"))
+
+                if upload_method == "Unggah file":
+                    uploaded_image = st.file_uploader("Pilih gambar", type=["png", "jpg", "jpeg"])
+                else:  # "Gunakan kamera"
+                    uploaded_image = st.camera_input("Ambil gambar")
+
                 message = st.text_input("Masukkan pesan yang ingin disembunyikan")
 
                 if st.button("Enkripsi Gambar"):
                     if uploaded_image and message:
                         try:
-                            # Membaca file yang diunggah langsung ke buffer
-                            image_buffer = BytesIO(uploaded_image.read())
+                            # Langkah 1: Simpan Gambar Sementara
+                            if upload_method == "Gunakan kamera":
+                                camera_image_path = "camera_image.jpg"
+                                with open(camera_image_path, "wb") as f:
+                                    f.write(uploaded_image.getvalue())
+                                st.info(f"Gambar dari kamera berhasil diproses")
 
-                            # Validasi apakah file yang diunggah adalah gambar
+                                # Konversi ke PNG dan hapus metadata
+                                img = Image.open(camera_image_path)
+                                clean_img = Image.new(img.mode, img.size)
+                                clean_img.putdata(list(img.getdata()))
+                                png_image_path = "processed_camera_image.png"
+                                clean_img.save(png_image_path, format="PNG")
+
+                                # Gunakan gambar PNG untuk proses steganografi
+                                image_buffer = open(png_image_path, "rb")
+                            else:
+                                # Jika file diunggah, gunakan langsung
+                                image_buffer = BytesIO(uploaded_image.read())
+
+                            # Langkah 2: Validasi Gambar
                             try:
                                 img = Image.open(image_buffer)
-                                img.verify()  # Memastikan buffer adalah gambar valid
-                                image_buffer.seek(0)  # Reset pointer ke awal setelah verifikasi
-                            except Exception as e:
+                                img.verify()  # Pastikan buffer adalah gambar valid
+                                image_buffer.seek(0)
+                            except Exception:
                                 st.error("File yang diunggah bukan gambar yang valid.")
                                 raise ValueError("Invalid image file")
 
-                            # Menghasilkan kunci dan file kunci
+                            # Langkah 3: Enkripsi Pesan
                             key_file_path, key = generate_key_file()
                             st.session_state["key_file_path"] = key_file_path
 
-                            # Mengenkripsi pesan ke dalam gambar
                             encrypted_image_buffer = BytesIO()
                             encrypted_image = encrypt_message_with_key(image_buffer, message, key)
-                            encrypted_image.save(encrypted_image_buffer, format=img.format)
+                            encrypted_image.save(encrypted_image_buffer, format="PNG")
                             encrypted_image_buffer.seek(0)
 
                             st.success("Gambar berhasil dienkripsi!")
 
-                            # Membuat file ZIP untuk diunduh
+                            # Langkah 4: Buat ZIP untuk Unduhan
                             zip_file_path = create_zip_stegano_buffer(encrypted_image_buffer, key_file_path)
 
-                            # Tombol unduh
+                            # Tombol untuk mengunduh ZIP
                             with open(zip_file_path, "rb") as zip_file:
-                                is_downloaded = st.download_button(
+                                st.download_button(
                                     "Download Gambar dan Kunci dalam ZIP",
                                     data=zip_file,
                                     file_name=zip_file_path.split('/')[-1],
                                     mime="application/zip"
                                 )
 
-                            # Menghapus file sementara jika tombol download ditekan
-                            if is_downloaded:
-                                if os.path.exists(zip_file_path):
-                                    os.remove(zip_file_path)
-                                if os.path.exists(key_file_path):
-                                    os.remove(key_file_path)
-                                st.success("File sementara berhasil dihapus!")
                         except Exception as e:
                             st.error(f"Terjadi kesalahan: {e}")
 
