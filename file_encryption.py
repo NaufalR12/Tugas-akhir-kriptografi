@@ -1,4 +1,3 @@
-# file_encryption.py
 from cryptography.fernet import Fernet
 import os
 import zipfile
@@ -26,8 +25,8 @@ def encrypt_file(file_path, key):
     
     ciphertext = fernet.encrypt(plaintext)
     
-    # Menyimpan hasil enkripsi ke file baru dengan nama yang sama
-    with open(file_path, 'wb') as file:  # Menimpa file asli
+    # Menyimpan hasil enkripsi ke file yang sama
+    with open(file_path, 'wb') as file:  # Menimpa file asli dengan file terenkripsi
         file.write(ciphertext)
     
     return file_path  # Mengembalikan nama file yang sama
@@ -52,9 +51,8 @@ def decrypt_file(encrypted_file_path, key):
     
     decrypted = fernet.decrypt(ciphertext)
     
-    # Menyimpan hasil dekripsi ke file baru dengan nama yang sama
-    with open(encrypted_file_path, 'wb') as file:  # Menimpa file terenkripsi
+    # Menyimpan hasil dekripsi ke file yang sama
+    with open(encrypted_file_path, 'wb') as file:  # Menimpa file terenkripsi dengan file hasil dekripsi
         file.write(decrypted)
     
     return encrypted_file_path  # Mengembalikan nama file yang sama
-

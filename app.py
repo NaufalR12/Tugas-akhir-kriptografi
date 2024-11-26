@@ -5,7 +5,9 @@ import re
 import os
 from enkripsidekripsitext import super_encrypt, super_decrypt
 from file_encryption import encrypt_file, decrypt_file, generate_key, save_key, load_key, create_zip
-from steganografigambar import encrypt_message_with_key, decrypt_message_with_key, generate_key_file, create_zip_stegano
+from steganografigambar import encrypt_message_with_key, decrypt_message_with_key, generate_key_file, create_zip_stegano_buffer
+from io import BytesIO
+from PIL import Image
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -253,20 +255,24 @@ elif st.session_state.page == "Menu":
                             st.error(f"Terjadi kesalahan saat proses enkripsi: {str(e)}")
             elif data_type == "📁File":
                 uploaded_file = st.file_uploader("Pilih file untuk dienkripsi", type=["txt", "pdf", "jpg", "png", "gif", "mp3", "mp4", "zip", "csv", "docx"])
+    
                 if st.button("Enkripsi File"):
                     if uploaded_file is not None:
                         try:
                             # Simpan file sementara
                             with open(uploaded_file.name, "wb") as f:
                                 f.write(uploaded_file.getbuffer())
+                            
                             # Menghasilkan dan menyimpan kunci
                             key = generate_key()
+                            
                             # Enkripsi file
                             encrypted_file_path = encrypt_file(uploaded_file.name, key)
+                            
                             # Buat file ZIP yang berisi file terenkripsi dan kunci
                             zip_file_path = create_zip(encrypted_file_path, key)
                             st.success("File berhasil dienkripsi dan disimpan dalam ZIP!")
-                            save_file_log(st.session_state.user_id, "enkripsi", uploaded_file.name, encrypted_file_path, None, "secret.key")
+
                             # Menyediakan tombol unduh untuk file ZIP
                             with open(zip_file_path, "rb") as f:
                                 st.download_button(
@@ -275,45 +281,66 @@ elif st.session_state.page == "Menu":
                                     file_name=zip_file_path.split("/")[-1],
                                     mime="application/zip"
                                 )
+                            
+                            
+
                         except Exception as e:
                             st.error(f"Terjadi kesalahan: {e}")
                     else:
                         st.error("Silakan pilih file.")
             elif data_type == "📷Gambar":
-                camera_input = st.camera_input("Ambil Foto dengan Kamera")
-                uploaded_image = camera_input if camera_input else st.file_uploader("Pilih gambar", type=["png", "jpg", "jpeg"])
+                uploaded_image = st.file_uploader("Pilih gambar", type=["png", "jpg", "jpeg"])
                 message = st.text_input("Masukkan pesan yang ingin disembunyikan")
 
-                if uploaded_image:
-                    
-                    st.session_state["uploaded_image"] = uploaded_image
-
                 if st.button("Enkripsi Gambar"):
-                    if st.session_state["uploaded_image"] and message:
+                    if uploaded_image and message:
                         try:
-                            image_path = f"temp_input.{uploaded_image.type.split('/')[-1]}"
-                            with open(image_path, "wb") as f:
-                                f.write(st.session_state["uploaded_image"].getbuffer())
+                            # Membaca file yang diunggah langsung ke buffer
+                            image_buffer = BytesIO(uploaded_image.read())
 
+                            # Validasi apakah file yang diunggah adalah gambar
+                            try:
+                                img = Image.open(image_buffer)
+                                img.verify()  # Memastikan buffer adalah gambar valid
+                                image_buffer.seek(0)  # Reset pointer ke awal setelah verifikasi
+                            except Exception as e:
+                                st.error("File yang diunggah bukan gambar yang valid.")
+                                raise ValueError("Invalid image file")
+
+                            # Menghasilkan kunci dan file kunci
                             key_file_path, key = generate_key_file()
                             st.session_state["key_file_path"] = key_file_path
 
-                            output_path = f"encrypted_image.{uploaded_image.type.split('/')[-1]}"
-                            encrypted_image_path = encrypt_message_with_key(image_path, message, output_path, key)
-                            st.session_state["encrypted_image_path"] = encrypted_image_path
+                            # Mengenkripsi pesan ke dalam gambar
+                            encrypted_image_buffer = BytesIO()
+                            encrypted_image = encrypt_message_with_key(image_buffer, message, key)
+                            encrypted_image.save(encrypted_image_buffer, format=img.format)
+                            encrypted_image_buffer.seek(0)
 
                             st.success("Gambar berhasil dienkripsi!")
 
-                            
-                            save_image_log(st.session_state.user_id, "enkripsi", uploaded_image.name, encrypted_image_path, None, key_file_path)
+                            # Membuat file ZIP untuk diunduh
+                            zip_file_path = create_zip_stegano_buffer(encrypted_image_buffer, key_file_path)
 
-                            
-                            zip_file_path = create_zip_stegano(encrypted_image_path, key_file_path)
-
+                            # Tombol unduh
                             with open(zip_file_path, "rb") as zip_file:
-                                st.download_button("Download Gambar dan Kunci dalam ZIP", data=zip_file, file_name=zip_file_path.split('/')[-1])
+                                is_downloaded = st.download_button(
+                                    "Download Gambar dan Kunci dalam ZIP",
+                                    data=zip_file,
+                                    file_name=zip_file_path.split('/')[-1],
+                                    mime="application/zip"
+                                )
+
+                            # Menghapus file sementara jika tombol download ditekan
+                            if is_downloaded:
+                                if os.path.exists(zip_file_path):
+                                    os.remove(zip_file_path)
+                                if os.path.exists(key_file_path):
+                                    os.remove(key_file_path)
+                                st.success("File sementara berhasil dihapus!")
                         except Exception as e:
                             st.error(f"Terjadi kesalahan: {e}")
+
         elif mode == "🔑Dekripsi":
             data_type = st.selectbox("Pilih jenis data yang ingin didekripsi:", ["💬Teks", "📁File", "📷Gambar"])
             if data_type == "💬Teks":
@@ -365,20 +392,22 @@ elif st.session_state.page == "Menu":
             elif data_type == "📷Gambar":
                 encrypted_image = st.file_uploader("Unggah gambar terenkripsi", type=["png", "jpg", "jpeg", "img"])
                 uploaded_key = st.file_uploader("Unggah file kunci", type=["txt"])
+
                 if st.button("Dekripsi Gambar"):
-                    
                     if encrypted_image and uploaded_key:
                         try:
-                            encrypted_image_path = f"temp_encrypted.{encrypted_image.type.split('/')[-1]}"
-                            with open(encrypted_image_path, "wb") as f:
-                                f.write(encrypted_image.getbuffer())
+                            # Membaca gambar terenkripsi dari buffer
+                            encrypted_image_buffer = BytesIO(encrypted_image.getbuffer())
 
+                            # Membaca kunci dari file kunci
                             key = uploaded_key.getvalue().decode("utf-8").strip()
 
-                            decrypted_message = decrypt_message_with_key(encrypted_image_path, key)
+                            # Mendekripsi pesan dari gambar terenkripsi
+                            decrypted_message = decrypt_message_with_key(encrypted_image_buffer, key)
                             st.write("Pesan Terdekripsi:", decrypted_message)
 
-                            
+                            # Log aktivitas (opsional)
                             save_image_log(st.session_state.user_id, "dekripsi", encrypted_image.name, None, decrypted_message, uploaded_key.name)
+
                         except Exception as e:
                             st.error(f"Terjadi kesalahan: {e}")
